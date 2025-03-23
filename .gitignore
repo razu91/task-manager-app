@@ -1,0 +1,42 @@
+# Node Modules (Frontend & Backend)
+backend/node_modules/
+frontend/node_modules/
+
+# Frontend Build Files
+frontend/build/
+
+# Laravel Specific Ignores (Backend)
+backend/vendor/
+backend/public/build/
+backend/public/hot/
+backend/public/storage/
+backend/storage/*.key
+backend/storage/pail
+
+# PHPUnit & Testing
+backend/.phpunit.cache
+backend/.phpunit.result.cache
+
+# Laravel Environment Files
+backend/.env
+backend/.env.backup
+backend/.env.production
+
+# PHP Tools & Debugging
+backend/.phpactor.json
+
+# Laravel Homestead
+backend/Homestead.json
+backend/Homestead.yaml
+
+# Logs & Debug Files
+backend/npm-debug.log
+backend/yarn-error.log
+backend/auth.json
+
+# IDE & Editor Settings (Global)
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
