@@ -4,14 +4,17 @@ frontend/node_modules/
 
 # Frontend Build Files
 frontend/build/
+frontend/dist/
+frontend/dist-ssr/
 
 # Laravel Specific Ignores (Backend)
 backend/vendor/
 backend/public/build/
 backend/public/hot/
 backend/public/storage/
-backend/storage/*.key
-backend/storage/pail
+backend/storage/*
+!backend/storage/framework/
+!backend/storage/logs/
 
 # PHPUnit & Testing
 backend/.phpunit.cache
@@ -21,13 +24,15 @@ backend/.phpunit.result.cache
 backend/.env
 backend/.env.backup
 backend/.env.production
+backend/.env.*.local
 
 # PHP Tools & Debugging
 backend/.phpactor.json
 
-# Laravel Homestead
+# Laravel Homestead & Sail
 backend/Homestead.json
 backend/Homestead.yaml
+backend/docker-compose.override.yml
 
 # Logs & Debug Files
 backend/npm-debug.log
@@ -40,3 +45,29 @@ backend/auth.json
 /.nova
 /.vscode
 /.zed
+
+# Frontend
+# Logs
+frontend/logs/
+frontend/*.log
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/lerna-debug.log*
+
+# Editor directories and files
+frontend/.vscode/
+frontend/.idea/
+frontend/.DS_Store
+frontend/*.suo
+frontend/*.ntvs*
+frontend/*.njsproj
+frontend/*.sln
+frontend/*.sw?
+
+# Frontend Environment Variables
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
