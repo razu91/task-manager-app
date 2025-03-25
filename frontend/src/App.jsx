@@ -1,10 +1,22 @@
+import { Routes, Route } from "react-router";
+import TaskList from "./pages/TaskList";
+import TaskForm from "./pages/TaskForm";
 import './App.css'
+import Navbar from "./components/Navbar";
+import { Toaster } from "react-hot-toast";
+import TaskBoard from "./pages/TaskBoard";
+
 
 function App() {
 
   return (
     <>
-      <h1 className='bg-red-300'>Hello World</h1>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<TaskBoard />} />
+        <Route path="/add-task" element={<TaskForm />} />
+      </Routes>
+      <Toaster position="top-right" />
     </>
   )
 }
