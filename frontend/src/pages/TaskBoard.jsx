@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { setTasks, updateTask, addTask } from "../redux/taskSlice";
 import axios from "axios";
@@ -19,29 +19,148 @@ function TaskBoard() {
     status: "To Do", 
     due_date: "" 
   });
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [originalTasks, setOriginalTasks] = useState([]);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
 
-  // Comprehensive fetch tasks method
+  // New state for validation errors
+  const [validationErrors, setValidationErrors] = useState({});
+
+  // Date formatting utility functions
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    
+    // Parse the full datetime string
+    const date = new Date(dateString);
+    
+    // Convert to YYYY-MM-DD format for input
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  };
+
+  // Validation function
+  const validateTask = () => {
+    const errors = {};
+
+    // Name validation
+    if (!task.name.trim()) {
+      errors.name = "Task name is required";
+    } else if (task.name.length < 3) {
+      errors.name = "Task name must be at least 3 characters long";
+    }
+
+    // Description validation
+    if (!task.description.trim()) {
+      errors.description = "Description is required";
+    } else if (task.description.length < 10) {
+      errors.description = "Description must be at least 10 characters long";
+    }
+
+    // Due date validation
+    if (!task.due_date) {
+      errors.due_date = "Due date is required";
+    } else {
+      const selectedDate = new Date(task.due_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (selectedDate < today) {
+        errors.due_date = "Due date cannot be in the past";
+      }
+    }
+
+    // Status validation
+    if (!["To Do", "In Progress", "Done"].includes(task.status)) {
+      errors.status = "Invalid status selected";
+    }
+
+    return errors;
+  };
+
   const fetchTasks = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get("http://127.0.0.1:8000/api/tasks");
       
-      // Ensure we're dispatching the entire response data
+      // Changed to use debouncedSearchQuery
+      const response = await axios.get("http://127.0.0.1:8000/api/tasks", {
+        params: {
+          search: debouncedSearchQuery, // Changed from searchQuery
+          status: statusFilter,
+          sort: sortOrder
+        }
+      });
+  
+      setOriginalTasks(response.data);
       dispatch(setTasks(response.data));
+  
     } catch (error) {
       console.error("Error fetching tasks:", error);
       toast.error("Failed to fetch tasks");
     } finally {
       setIsLoading(false);
     }
-  }, [dispatch]);
+  }, [dispatch, debouncedSearchQuery, statusFilter, sortOrder]); // Added debouncedSearchQuery
 
-  // Fetch tasks on component mount
+const filteredTasks = useMemo(() => {
+  let result = [...originalTasks];
+
+  // Changed to use debouncedSearchQuery
+  if (debouncedSearchQuery.trim()) {
+    result = result.filter(task => 
+      task.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    );
+  }
+   
+  // Apply status filter
+  if (statusFilter !== "All") {
+    result = result.filter(task => task.status === statusFilter);
+  }
+  
+  // Sort tasks by due date
+  result.sort((a, b) => {
+    return sortOrder === "desc"
+      ? new Date(b.due_date) - new Date(a.due_date)
+      : new Date(a.due_date) - new Date(b.due_date);
+  });
+
+  return result;
+}, [originalTasks, debouncedSearchQuery, statusFilter, sortOrder]);
+
+//useEffect to update tasks in Redux when filtered tasks change
+useEffect(() => {
+  dispatch(setTasks(filteredTasks));
+}, [filteredTasks, dispatch]);
+
+useEffect(() => {
+  const handler = setTimeout(() => {
+    setDebouncedSearchQuery(searchQuery);
+  }, 500); // 500ms delay
+
+  return () => {
+    clearTimeout(handler);
+  };
+}, [searchQuery]);
+
+// Fetch tasks on component mount
+useEffect(() => {
+  fetchTasks();
+}, [debouncedSearchQuery, fetchTasks]);
+
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
-
+    console.log("Search query changed:", searchQuery);
+    const delaySearch = setTimeout(() => {
+        fetchTasks(); // Fetch tasks when search query changes
+    }, 500);
+    return () => clearTimeout(delaySearch);  
+  },[searchQuery,fetchTasks]);
   // Drag and drop handler with comprehensive error handling
   const onDragEnd = async (result) => {
     const { source, destination } = result;
@@ -77,7 +196,19 @@ function TaskBoard() {
 
   // Form submission handler with comprehensive logic
   const handleSubmit = async (e) => {
+
     e.preventDefault();
+
+    // Clear previous validation errors
+    setValidationErrors({});
+    // Validate the task
+    const errors = validateTask();
+    // If there are validation errors, set them and prevent submission
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -102,9 +233,31 @@ function TaskBoard() {
         await fetchTasks();
         toast.success("Task added!");
       }
-    } catch (error) {
-      console.error("Error saving task:", error);
-      toast.error("Failed to save task");
+    } catch (error) {      
+      // Handle backend validation errors
+      if (error.response && error.response.data && error.response.data.errors) {
+        const backendErrors = error.response.data.errors;
+        
+        // Map backend errors to our validation state
+        const formattedErrors = {};
+        Object.keys(backendErrors).forEach(key => {
+          // Use the first error message for each field
+          formattedErrors[key] = backendErrors[key][0] || "Invalid input";
+        });
+
+        console.log(formattedErrors);
+        setValidationErrors(formattedErrors);
+        // Optionally, show the main error message
+        if (error.response.data.message) {
+          toast.error(error.response.data.message);
+        } else {
+          toast.error("Please check the form for errors");
+        }
+      } else {
+        console.error("Error saving task:", error);
+        toast.error("Failed to save task");
+      }
+
     } finally {
       setOpen(false);
       setSelectedTask(null);
@@ -125,18 +278,52 @@ function TaskBoard() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Task Board (Trello Clone)</h1>
+      <div className="flex justify-between gap-4 mb-4">
+        <div className="right-side">
+          <h1 className="text-2xl font-bold mb-4">Task Board</h1>
+        </div>
+        <div className="sort_search ml-2">
+          {/* Search Input */}
+          <input
+            type="text"
+            placeholder="Search tasks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="border p-2 w-1/3"
+          />
+
+          {/* Status Filter Dropdown */}
+          <select 
+            className="border p-2 ml-2" 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="All">All</option>
+            <option value="To Do">To Do</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Done">Done</option>
+          </select>
+
+        {/* Sort Order Dropdown */}
+        <select 
+          className="border p-2 ml-2"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}>
+          <option value="asc">Sort by Due Date (ASC)</option>
+          <option value="desc">Sort by Due Date (DESC)</option>
+        </select>
+      </div>
+      </div>
       <Button 
-        onClick={() => {
-          setSelectedTask(null);
-          setTask({ name: "", description: "", status: "To Do", due_date: "" });
-          setOpen(true);
-        }} 
-        disabled={isLoading}
-      >
-        {isLoading ? "Processing..." : "+ Add Task"}
+            onClick={() => {
+              setSelectedTask(null);
+              setTask({ name: "", description: "", status: "To Do", due_date: "" });
+              setOpen(true);
+            }} 
+            disabled={isLoading}
+          >
+            {isLoading ? "Processing..." : "+ Add Task"}
       </Button>
-      
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="grid grid-cols-3 gap-4 mt-6">
           {["To Do", "In Progress", "Done"].map((status) => (
@@ -190,6 +377,7 @@ function TaskBoard() {
             {selectedTask ? "Edit Task" : "Add Task"}
           </DialogTitle>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
             <input
               type="text"
               placeholder="Task Name"
@@ -198,6 +386,11 @@ function TaskBoard() {
               onChange={(e) => setTask({ ...task, name: e.target.value })}
               required
             />
+              {validationErrors.name && (
+                <p className="text-red-500 text-sm mt-1">{validationErrors.name}</p>
+              )}
+            </div>
+            <div>
             <textarea
               placeholder="Description"
               className="border p-2 w-full"
@@ -205,6 +398,11 @@ function TaskBoard() {
               onChange={(e) => setTask({ ...task, description: e.target.value })}
               required
             />
+              {validationErrors.description && (
+                <p className="text-red-500 text-sm mt-1">{validationErrors.description}</p>
+              )}
+            </div>
+            <div>
             <select
               className="border p-2 w-full"
               value={task.status}
@@ -214,13 +412,22 @@ function TaskBoard() {
               <option>In Progress</option>
               <option>Done</option>
             </select>
+              {validationErrors.status && (
+                <p className="text-red-500 text-sm mt-1">{validationErrors.status}</p>
+              )}
+            </div>
+            <div>
             <input
               type="date"
               className="border p-2 w-full"
-              value={task.due_date}
+              value={formatDateForInput(task.due_date)}
               onChange={(e) => setTask({ ...task, due_date: e.target.value })}
               required
             />
+              {validationErrors.due_date && (
+                <p className="text-red-500 text-sm mt-1">{validationErrors.due_date}</p>
+              )}
+            </div>
             <div className="flex justify-end gap-2">
               <Button 
                 type="button" 

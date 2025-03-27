@@ -18,8 +18,8 @@ class TaskController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'name' => 'required|string|max:100',
+            'description' => 'nullable|string|max:255',
             'status' => 'required|in:To Do,In Progress,Done',
             'due_date' => 'nullable|date',
         ]);
@@ -40,8 +40,8 @@ class TaskController extends Controller
         $task = Task::findOrFail($id);
 
         $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'name' => 'required|string|max:100',
+            'description' => 'nullable|string|max:255',
             'status' => 'required|in:To Do,In Progress,Done',
             'due_date' => 'nullable|date',
         ]);

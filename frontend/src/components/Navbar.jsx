@@ -8,22 +8,10 @@ function Navbar() {
 
   const navLinks = [
     { label: 'Home', to: '/' },
-    { label: 'Add Task', to: '/add-task' }
   ];
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
-  };
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-  };
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    // Implement search functionality
-    // For example, navigate to search results or filter tasks
-    console.log('Search query:', searchQuery);
   };
 
   return (
@@ -56,28 +44,14 @@ function Navbar() {
               </NavLink>
             ))}
 
-            {/* Search and CTA */}
+            {/* SignUp */}
             <div className="flex items-center space-x-4">
-              <form onSubmit={handleSearchSubmit} className="relative">
-                <input
-                  type="text"
-                  placeholder="Search tasks..."
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  className="pl-8 pr-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <Search 
-                  className="absolute left-2 top-3 text-gray-400" 
-                  size={18} 
-                  onClick={handleSearchSubmit}
-                />
-              </form>
-              <Link
+              <NavLink
                 to="/signup"
                 className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-colors"
               >
                 Sign Up
-              </Link>
+              </NavLink>
             </div>
           </div>
 
