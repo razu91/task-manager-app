@@ -6,8 +6,11 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router";
 
 function TaskBoard() {
+  const navigate = useNavigate(); 
+  const { isAuthenticated, token } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const tasks = useSelector((state) => state.tasks.list);
   
@@ -86,13 +89,18 @@ function TaskBoard() {
   };
 
   const fetchTasks = useCallback(async () => {
+    // Authentication check
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
     try {
       setIsLoading(true);
       
       // Changed to use debouncedSearchQuery
       const response = await axios.get("http://127.0.0.1:8000/api/tasks", {
         params: {
-          search: debouncedSearchQuery, // Changed from searchQuery
+          search: debouncedSearchQuery, 
           status: statusFilter,
           sort: sortOrder
         }
@@ -102,17 +110,22 @@ function TaskBoard() {
       dispatch(setTasks(response.data));
   
     } catch (error) {
-      console.error("Error fetching tasks:", error);
-      toast.error("Failed to fetch tasks");
+       // 401 error handling
+      if (error.response && error.response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        navigate('/login');
+      } else {
+        console.error("Error fetching tasks:", error);
+        toast.error("Failed to fetch tasks");
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [dispatch, debouncedSearchQuery, statusFilter, sortOrder]); // Added debouncedSearchQuery
+  }, [dispatch, debouncedSearchQuery, statusFilter, sortOrder]); 
 
 const filteredTasks = useMemo(() => {
   let result = [...originalTasks];
 
-  // Changed to use debouncedSearchQuery
   if (debouncedSearchQuery.trim()) {
     result = result.filter(task => 
       task.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
@@ -148,6 +161,19 @@ useEffect(() => {
     clearTimeout(handler);
   };
 }, [searchQuery]);
+
+// Authentication check in useEffect
+useEffect(() => {
+  if (!isAuthenticated) {
+    navigate('/login');
+    return;
+  }
+
+  // Configure axios default headers with token
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+}, [isAuthenticated, token, navigate]);
 
 // Fetch tasks on component mount
 useEffect(() => {
@@ -196,7 +222,10 @@ useEffect(() => {
 
   // Form submission handler with comprehensive logic
   const handleSubmit = async (e) => {
-
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
     e.preventDefault();
 
     // Clear previous validation errors
@@ -234,6 +263,10 @@ useEffect(() => {
         toast.success("Task added!");
       }
     } catch (error) {      
+      if (error.response && error.response.status === 401) {
+        toast.error("Session expired. Please login again.");
+        navigate('/login');
+      }
       // Handle backend validation errors
       if (error.response && error.response.data && error.response.data.errors) {
         const backendErrors = error.response.data.errors;
@@ -275,6 +308,17 @@ useEffect(() => {
   useEffect(() => {
     console.log("Current tasks:", tasks);
   }, [tasks]);
+  
+  if (!isAuthenticated) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center">
+          <p className="text-xl mb-4">Please log in to access the Task Board</p>
+          <Button onClick={() => navigate('/login')}>Go to Login</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">

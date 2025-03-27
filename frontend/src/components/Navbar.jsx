@@ -1,18 +1,25 @@
-import React, { useState } from 'react';
-import { Link, NavLink } from 'react-router';
-import { Menu, X, Search } from 'lucide-react';
+import React, { useState } from "react";
+import { Link, NavLink } from "react-router";
+import { Menu, X } from "lucide-react";
+import { useSelector, useDispatch } from "react-redux";
+import { logoutUser } from "../redux/authSlice"; // Adjust the path accordingly
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const dispatch = useDispatch();
 
-  const navLinks = [
-    { label: 'Home', to: '/' },
-  ];
+  // Get authentication state from Redux
+  const { isAuthenticated } = useSelector((state) => state.auth);
+
+  const handleLogout = () => {
+    dispatch(logoutUser());
+  };
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
+
+  const navLinks = [{ label: "Home", to: "/" }];
 
   return (
     <nav className="bg-white shadow-md sticky top-0 z-50">
@@ -20,10 +27,7 @@ function Navbar() {
         <div className="flex justify-between items-center py-4">
           {/* Logo */}
           <div className="flex items-center">
-            <Link 
-              to="/" 
-              className="text-2xl font-bold text-gray-800"
-            >
+            <Link to="/" className="text-2xl font-bold text-gray-800">
               TaskMaster
             </Link>
           </div>
@@ -34,9 +38,9 @@ function Navbar() {
               <NavLink
                 key={link.label}
                 to={link.to}
-                className={({ isActive }) => 
+                className={({ isActive }) =>
                   `text-gray-700 hover:text-blue-600 transition-colors duration-300 ${
-                    isActive ? 'text-blue-600 font-semibold' : ''
+                    isActive ? "text-blue-600 font-semibold" : ""
                   }`
                 }
               >
@@ -44,14 +48,23 @@ function Navbar() {
               </NavLink>
             ))}
 
-            {/* SignUp */}
+            {/* Login / Logout Button */}
             <div className="flex items-center space-x-4">
-              <NavLink
-                to="/signup"
-                className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-colors"
-              >
-                Sign Up
-              </NavLink>
+              {isAuthenticated ? (
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-700 transition-colors"
+                >
+                  Logout
+                </button>
+              ) : (
+                <NavLink
+                  to="/login"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-colors"
+                >
+                  Login
+                </NavLink>
+              )}
             </div>
           </div>
 
@@ -74,9 +87,9 @@ function Navbar() {
                 <NavLink
                   key={link.label}
                   to={link.to}
-                  className={({ isActive }) => 
+                  className={({ isActive }) =>
                     `text-gray-700 hover:bg-gray-200 block px-3 py-2 rounded-md ${
-                      isActive ? 'bg-gray-200 font-semibold' : ''
+                      isActive ? "bg-gray-200 font-semibold" : ""
                     }`
                   }
                   onClick={toggleMenu}
@@ -84,24 +97,29 @@ function Navbar() {
                   {link.label}
                 </NavLink>
               ))}
+
+              {/* Mobile Login/Logout Button */}
               <div className="pt-4 border-t border-gray-200">
                 <div className="space-y-2">
-                  <form onSubmit={handleSearchSubmit}>
-                    <input
-                      type="text"
-                      placeholder="Search tasks..."
-                      value={searchQuery}
-                      onChange={handleSearchChange}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </form>
-                  <Link
-                    to="/signup"
-                    className="block w-full text-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                    onClick={toggleMenu}
-                  >
-                    Sign Up
-                  </Link>
+                  {isAuthenticated ? (
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        toggleMenu();
+                      }}
+                      className="bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-700 transition-colors w-full"
+                    >
+                      Logout
+                    </button>
+                  ) : (
+                    <NavLink
+                      to="/login"
+                      onClick={toggleMenu}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-colors w-full text-center block"
+                    >
+                      Login
+                    </NavLink>
+                  )}
                 </div>
               </div>
             </div>
