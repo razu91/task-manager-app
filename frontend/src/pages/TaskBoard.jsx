@@ -26,13 +26,16 @@ function TaskBoard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState("asc");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [originalTasks, setOriginalTasks] = useState([]);
+  const [originalTasks, setOriginalTasks] = useState({});
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
 
   // New state for validation errors
   const [validationErrors, setValidationErrors] = useState({});
+
+  const [currentPage, setCurrentPage] = useState(1); // Track the current page
+  const [hasMore, setHasMore] = useState({}); // Track if more data is available for each status
 
   // Date formatting utility functions
   const formatDateForInput = (dateString) => {
@@ -88,68 +91,98 @@ function TaskBoard() {
     return errors;
   };
 
-  const fetchTasks = useCallback(async () => {
-    // Authentication check
+  const fetchTasks = useCallback(async (page = 1) => {
     if (!isAuthenticated) {
-      navigate('/login');
-      return;
+        navigate('/login');
+        return;
     }
     try {
-      setIsLoading(true);
-      
-      // Changed to use debouncedSearchQuery
-      const response = await axios.get("http://127.0.0.1:8000/api/tasks", {
-        params: {
-          search: debouncedSearchQuery, 
-          status: statusFilter,
-          sort: sortOrder
-        }
-      });
-  
-      setOriginalTasks(response.data);
-      dispatch(setTasks(response.data));
-  
+        setIsLoading(true);
+
+        const response = await axios.get("http://127.0.0.1:8000/api/tasks", {
+            params: {
+                to_do_page: page,
+                in_progress_page: page,
+                done_page: page,
+            },
+        });
+
+        const { to_do, in_progress, done } = response.data;
+
+        setOriginalTasks((prevTasks) => ({
+            "To Do": page === 1 
+                ? to_do.data 
+                : [...(prevTasks["To Do"] || []), ...to_do.data].filter(
+                    (task, index, self) => self.findIndex(t => t.id === task.id) === index
+                ),
+            "In Progress": page === 1 
+                ? in_progress.data 
+                : [...(prevTasks["In Progress"] || []), ...in_progress.data].filter(
+                    (task, index, self) => self.findIndex(t => t.id === task.id) === index
+                ),
+            "Done": page === 1 
+                ? done.data 
+                : [...(prevTasks["Done"] || []), ...done.data].filter(
+                    (task, index, self) => self.findIndex(t => t.id === task.id) === index
+                ),
+        }));
+
+        setHasMore({
+            "To Do": to_do.pagination.current_page < to_do.pagination.last_page,
+            "In Progress": in_progress.pagination.current_page < in_progress.pagination.last_page,
+            "Done": done.pagination.current_page < done.pagination.last_page,
+        });
+
+        console.log("Per page value from backend:", to_do.pagination.per_page);
     } catch (error) {
-       // 401 error handling
-      if (error.response && error.response.status === 401) {
-        toast.error("Session expired. Please login again.");
-        navigate('/login');
-      } else {
-        console.error("Error fetching tasks:", error);
-        toast.error("Failed to fetch tasks");
-      }
+        if (error.response && error.response.status === 401) {
+            toast.error("Session expired. Please login again.");
+            navigate('/login');
+        } else {
+            console.error("Error fetching tasks:", error);
+            toast.error("Failed to fetch tasks");
+        }
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  }, [dispatch, debouncedSearchQuery, statusFilter, sortOrder]); 
+}, [isAuthenticated, navigate]);
 
 const filteredTasks = useMemo(() => {
-  let result = [...originalTasks];
+    if (!originalTasks || typeof originalTasks !== "object") return {};
+    const result = {};
 
-  if (debouncedSearchQuery.trim()) {
-    result = result.filter(task => 
-      task.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-    );
-  }
-   
-  // Apply status filter
-  if (statusFilter !== "All") {
-    result = result.filter(task => task.status === statusFilter);
-  }
-  
-  // Sort tasks by due date
-  result.sort((a, b) => {
-    return sortOrder === "desc"
-      ? new Date(b.due_date) - new Date(a.due_date)
-      : new Date(a.due_date) - new Date(b.due_date);
-  });
+    ["To Do", "In Progress", "Done"].forEach((status) => {
+        let tasksByStatus = originalTasks[status] || [];
 
-  return result;
-}, [originalTasks, debouncedSearchQuery, statusFilter, sortOrder]);
+        // Apply status filter
+        if (statusFilter !== "All" && status !== statusFilter) {
+            return; // Skip this status if it doesn't match the filter
+        }
+
+        // Filter tasks by their status
+        tasksByStatus = tasksByStatus.filter(task => task.status === status);
+
+        if (debouncedSearchQuery.trim()) {
+            tasksByStatus = tasksByStatus.filter(task =>
+                task.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+            );
+        }
+
+        tasksByStatus.sort((a, b) => {
+            return sortOrder === "desc"
+                ? new Date(b.due_date) - new Date(a.due_date)
+                : new Date(a.due_date) - new Date(b.due_date);
+        });
+
+        result[status] = tasksByStatus;
+    });
+
+    return result;
+}, [originalTasks, debouncedSearchQuery, sortOrder, statusFilter]);
 
 //useEffect to update tasks in Redux when filtered tasks change
 useEffect(() => {
-  dispatch(setTasks(filteredTasks));
+  dispatch(setTasks(Object.values(filteredTasks).flat()));
 }, [filteredTasks, dispatch]);
 
 useEffect(() => {
@@ -177,23 +210,54 @@ useEffect(() => {
 
 // Fetch tasks on component mount
 useEffect(() => {
-  fetchTasks();
-}, [debouncedSearchQuery, fetchTasks]);
+    ["To Do", "In Progress", "Done"].forEach((status) => {
+        fetchTasks(currentPage); // Fetch tasks for each status
+    });
+}, [currentPage, fetchTasks]);
 
-  useEffect(() => {
-    console.log("Search query changed:", searchQuery);
-    const delaySearch = setTimeout(() => {
-        fetchTasks(); // Fetch tasks when search query changes
-    }, 500);
-    return () => clearTimeout(delaySearch);  
-  },[searchQuery,fetchTasks]);
+useEffect(() => {
+  const handlePanelScroll = (status) => (event) => {
+    const panel = event.target;
+    if (
+      panel.scrollHeight - panel.scrollTop <= panel.clientHeight + 100 &&
+      !isLoading &&
+      hasMore[status]
+    ) {
+      setCurrentPage((prevPage) => prevPage + 1);
+    }
+  };
+
+  const panels = document.querySelectorAll(".task-panel");
+  panels.forEach((panel) => {
+    const status = panel.getAttribute("data-status");
+    panel.addEventListener("scroll", handlePanelScroll(status));
+  });
+
+  return () => {
+    panels.forEach((panel) => {
+      const status = panel.getAttribute("data-status");
+      panel.removeEventListener("scroll", handlePanelScroll(status));
+    });
+  };
+}, [hasMore, isLoading]);
+
+useEffect(() => {
+  console.log("Search query changed:", searchQuery);
+  const delaySearch = setTimeout(() => {
+      ["To Do", "In Progress", "Done"].forEach((status) => {
+          fetchTasks(currentPage); // Fetch tasks for each status
+      });
+  }, 500);
+  return () => clearTimeout(delaySearch);  
+},[searchQuery,fetchTasks]);
+
   // Drag and drop handler with comprehensive error handling
   const onDragEnd = async (result) => {
     const { source, destination } = result;
     
     if (!destination) return;
 
-    const draggedTask = tasks.find(task => 
+    const draggedTask = Object.values(filteredTasks).flat().find(task => 
       task.id === parseInt(result.draggableId)
     );
 
@@ -376,36 +440,35 @@ useEffect(() => {
                 <div 
                   ref={provided.innerRef} 
                   {...provided.droppableProps} 
-                  className="bg-gray-100 p-4 rounded-md min-h-[300px]"
+                  className="task-panel bg-gray-100 p-4 rounded-md h-[500px] overflow-y-auto" // Ensure scroll bar for overflow
+                  data-status={status} // Add data attribute for status
                 >
                   <h2 className="text-lg font-semibold mb-3">{status}</h2>
-                  {tasks
-                    .filter(task => task.status === status)
-                    .map((task, index) => (
-                      <Draggable 
-                        key={task.id} 
-                        draggableId={String(task.id)} 
-                        index={index}
-                      >
-                        {(provided) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className="bg-white p-3 rounded-md shadow-md mb-2 cursor-pointer"
-                            onClick={() => { 
-                              setTask({...task}); 
-                              setSelectedTask({...task}); 
-                              setOpen(true); 
-                            }}
-                          >
-                            <strong>{task.name}</strong>
-                            <p className="text-sm text-gray-600">{task.description}</p>
-                            <span className="text-xs text-gray-500">{task.due_date}</span>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
+                  {filteredTasks[status]?.map((task, index) => (
+                    <Draggable 
+                      key={task.id} 
+                      draggableId={String(task.id)} 
+                      index={index}
+                    >
+                      {(provided) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                          className="bg-white p-3 rounded-md shadow-md mb-2 cursor-pointer"
+                          onClick={() => { 
+                            setTask({...task}); 
+                            setSelectedTask({...task}); 
+                            setOpen(true); 
+                          }}
+                        >
+                          <strong>{task.name}</strong>
+                          <p className="text-sm text-gray-600">{task.description}</p>
+                          <span className="text-xs text-gray-500">{task.due_date}</span>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
                   {provided.placeholder}
                 </div>
               )}

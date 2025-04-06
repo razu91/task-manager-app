@@ -7,12 +7,45 @@ use Illuminate\Http\Request;
 
 class TaskController extends Controller
 {
-    // Get all tasks
-    public function index()
+    // Get all tasks with pagination grouped by status
+    public function index(Request $request)
     {
-        $tasks = Task::all();
+        $perPage = $request->query('perPage', 5); // Default to 5 items per page
 
-        return response()->json($tasks);
+        // Paginate tasks by status
+        $toDoTasks = Task::where('status', 'To Do')->paginate($perPage, ['*'], 'to_do_page');
+        $inProgressTasks = Task::where('status', 'In Progress')->paginate($perPage, ['*'], 'in_progress_page');
+        $doneTasks = Task::where('status', 'Done')->paginate($perPage, ['*'], 'done_page');
+
+        return response()->json([
+            'to_do' => [
+                'data' => $toDoTasks->items(),
+                'pagination' => [
+                    'current_page' => $toDoTasks->currentPage(),
+                    'last_page' => $toDoTasks->lastPage(),
+                    'per_page' => $toDoTasks->perPage(),
+                    'total' => $toDoTasks->total(),
+                ],
+            ],
+            'in_progress' => [
+                'data' => $inProgressTasks->items(),
+                'pagination' => [
+                    'current_page' => $inProgressTasks->currentPage(),
+                    'last_page' => $inProgressTasks->lastPage(),
+                    'per_page' => $inProgressTasks->perPage(),
+                    'total' => $inProgressTasks->total(),
+                ],
+            ],
+            'done' => [
+                'data' => $doneTasks->items(),
+                'pagination' => [
+                    'current_page' => $doneTasks->currentPage(),
+                    'last_page' => $doneTasks->lastPage(),
+                    'per_page' => $doneTasks->perPage(),
+                    'total' => $doneTasks->total(),
+                ],
+            ],
+        ]);
     }
 
     public function store(Request $request)

@@ -7,8 +7,12 @@ const taskSlice = createSlice({
   },
   reducers: {
     setTasks: (state, action) => {
-      // Create a new array reference
-      state.list = action.payload.map(task => ({...task}));
+      // Replace tasks
+      state.list = action.payload;
+    },
+    appendTasks: (state, action) => {
+      // Append tasks
+      state.list = [...state.list, ...action.payload];
     },
     addTask: (state, action) => {      
       // Create a new array with the added task
@@ -30,5 +34,5 @@ const taskSlice = createSlice({
   },
 });
 
-export const { setTasks, addTask, updateTask, deleteTask } = taskSlice.actions;
+export const { setTasks, appendTasks, addTask, updateTask, deleteTask } = taskSlice.actions;
 export default taskSlice.reducer;
