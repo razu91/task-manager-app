@@ -10,7 +10,7 @@ class TaskController extends Controller
     // Get all tasks with pagination grouped by status
     public function index(Request $request)
     {
-        $perPage = $request->query('perPage', 5); // Default to 5 items per page
+        $perPage = $request->query('perPage', 10); // Default to 5 items per page
 
         // Paginate tasks by status
         $toDoTasks = Task::where('status', 'To Do')->paginate($perPage, ['*'], 'to_do_page');

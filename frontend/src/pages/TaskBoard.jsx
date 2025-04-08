@@ -216,9 +216,20 @@ useEffect(() => {
 }, [currentPage, fetchTasks]);
 
 useEffect(() => {
-  const handlePanelScroll = (status) => (event) => {
-    const panel = event.target;
+  const debounce = (func, delay) => {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => func(...args), delay);
+    };
+  };
+
+  const scrollHandlers = new Map(); // Store debounced handlers for each panel
+
+  const handlePanelScroll = (status) => {
+    const panel = document.querySelector(`.task-panel[data-status="${status}"]`);
     if (
+      panel &&
       panel.scrollHeight - panel.scrollTop <= panel.clientHeight + 100 &&
       !isLoading &&
       hasMore[status]
@@ -230,14 +241,22 @@ useEffect(() => {
   const panels = document.querySelectorAll(".task-panel");
   panels.forEach((panel) => {
     const status = panel.getAttribute("data-status");
-    panel.addEventListener("scroll", handlePanelScroll(status));
+    if (!scrollHandlers.has(status)) {
+      const debouncedHandler = debounce(() => handlePanelScroll(status), 300);
+      scrollHandlers.set(status, debouncedHandler);
+    }
+    panel.addEventListener("scroll", scrollHandlers.get(status));
   });
 
   return () => {
     panels.forEach((panel) => {
       const status = panel.getAttribute("data-status");
-      panel.removeEventListener("scroll", handlePanelScroll(status));
+      const handler = scrollHandlers.get(status);
+      if (handler) {
+        panel.removeEventListener("scroll", handler);
+      }
     });
+    scrollHandlers.clear(); // Clean up the Map
   };
 }, [hasMore, isLoading]);
 
@@ -440,7 +459,7 @@ useEffect(() => {
                 <div 
                   ref={provided.innerRef} 
                   {...provided.droppableProps} 
-                  className="task-panel bg-gray-100 p-4 rounded-md h-[500px] overflow-y-auto" // Ensure scroll bar for overflow
+                  className="task-panel bg-gray-100 p-4 rounded-md h-[600px] overflow-y-auto" // Ensure scroll bar for overflow
                   data-status={status} // Add data attribute for status
                 >
                   <h2 className="text-lg font-semibold mb-3">{status}</h2>
