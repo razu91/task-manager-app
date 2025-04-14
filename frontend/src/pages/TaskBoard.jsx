@@ -7,6 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router";
+import Echo from 'laravel-echo';
+import Pusher from "pusher-js";
+
+window.Pusher = Pusher;
+
+window.Echo = new Echo({
+    broadcaster: 'reverb',
+    key: 'cnn5eworesoclzgwv9x5',
+    wsHost: '127.0.0.1',
+    wsPort: 6001,
+    forceTLS: false,
+    disableStats: true,
+});
 
 function TaskBoard() {
   const navigate = useNavigate(); 
@@ -386,7 +399,40 @@ useEffect(() => {
       setIsLoading(false);
     }
   };
-
+  useEffect(() => {
+    // Listen for task creation event
+    const channel = window.Echo.channel("tasks")
+        .listen("TaskCreated", (data) => {
+            console.log("New Task Created:", data.task);
+            
+            // Dispatch action to add new task to Redux store
+            dispatch(addTask(data.task));
+  
+            // Update original tasks state
+            setOriginalTasks(prevTasks => {
+                const updatedTasks = {...prevTasks};
+                
+                // Determine the initial status column
+                const initialStatus = data.task.status || "To Do";
+                
+                // Add task to the appropriate status column
+                updatedTasks[initialStatus] = [
+                    ...(updatedTasks[initialStatus] || []),
+                    data.task
+                ];
+  
+                return updatedTasks;
+            });
+  
+            // Optional: Show a toast notification
+            toast.success("New task added!");
+        });
+  
+    // Cleanup on component unmount
+    return () => {
+        channel.stopListening("TaskCreated");
+    };
+  }, [dispatch]);
   // Debug logging
   useEffect(() => {
     console.log("Current tasks:", tasks);

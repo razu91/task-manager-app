@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\TaskCreated;
 use App\Models\Task;
 use Illuminate\Http\Request;
 
@@ -63,6 +64,8 @@ class TaskController extends Controller
             'status' => $request->status,
             'due_date' => $request->due_date,
         ]);
+
+        broadcast(new TaskCreated($task))->toOthers();
 
         return response()->json(['task' => $task], 201);
     }
